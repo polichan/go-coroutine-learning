@@ -338,5 +338,7 @@ func producer(c chan int)  {
 #### 参考资料：
 
 [浅谈协程和Go语言的Goroutine](https://juejin.cn/post/6844904056918376456)
+
 [Go 系列教程 —— 21. Go 协程](https://studygolang.com/articles/12342)
+
 [Go 系列教程 —— 22. 信道（channel](https://studygolang.com/articles/12402)
