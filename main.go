@@ -1,16 +1,20 @@
 package main
 
-import (
-	"fmt"
-	"time"
-)
+import "fmt"
 
 func main() {
-	go hello()
-	time.Sleep(1 * time.Second)
-	fmt.Println("main function")
+	c := make(chan int)
+	go producer(c)
+	for value := range c{
+		fmt.Println("value: ", value)
+	}
+	fmt.Println("Channel has been closed!")
 }
 
-func hello()  {
-	fmt.Println("Hello goroutine")
+func producer(c chan int)  {
+	for i := 0; i <= 10; i++{
+		c <- i
+	}
+	close(c)
 }
+
