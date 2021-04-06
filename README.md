@@ -418,6 +418,131 @@ func main() {
 
 例如，容量为 3 的管道可能当前排队了两个元素，排队了 2 个元素的管道容量一定是大于等于 2 的。
 
+##### WaitGroup
+
+工作池的原理基于 ``WaitGroup``，因此我们需要先学习 ``WaitGroup``
+
+``WaitGroup`` 是用于等待一批 Go 协程执行结束，程序控制会一直阻塞，直到这些协程全部执行完毕。假设我们有三个并发执行的 Go 协程。Go 主协程需要等待这三个协程执行结束后，才会终止，这就可以用 ``WaitGroup`` 实现
+
+```golang
+package main
+
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
+func main() {
+	var wg sync.WaitGroup
+	for i := 0; i < 3; i++{
+		wg.Add(1)
+		go routine(i, &wg)
+	}
+	wg.Wait()
+	fmt.Println("All routines have done")
+}
+
+func routine(i int, wg *sync.WaitGroup)  {
+	fmt.Println("goroutine :", i)
+	time.Sleep(2 * time.Second)
+	fmt.Println("goroutine :", i, "ended")
+	wg.Done()
+}
+```
+
+首先，我们利用循环并发执行三个协程，每并发一个协程就在 ``wg`` 中对其增加一次技术。三个协程携带 ``wg``的指针，当协程执行完它所执行任务后，就将在 ``wg`` 中的计数减少 ``1``主协程中会一直等待计数为 ``0`` 时，才会继续执行主协程的内容。
+
+* 为什么需要 ``wg`` 的指针，而不是 ``wg``。因此如果不传递指针的话，那么 ``wg`` 只会是值拷贝。而不是主协程中实际的 ``wg``
+
+##### 工作池（Worker Pool)
+
+```golang
+package main
+
+import (
+	"fmt"
+	"math/rand"
+	"sync"
+	"time"
+)
+
+type Job struct {
+	Id int
+	Randomno int
+}
+
+type Result struct {
+	Job Job
+	SumOfDigits int
+}
+
+var jobs = make(chan Job, 10)
+var results = make(chan Result, 10)
+
+func main() {
+	startTime := time.Now()
+	noOfJobs := 100
+	go allocate(noOfJobs)
+	done := make(chan bool)
+	go result(done)
+	noOfWorkers := 10
+	createWorkerPool(noOfWorkers)
+	<-done
+	endTime := time.Now()
+	diff := endTime.Sub(startTime)
+	fmt.Println("total time taken ", diff.Seconds(), "seconds")
+}
+
+func digits(number int)int  {
+	sum := 0
+	no := number
+	for no != 0 {
+		digit := no % 10
+		sum += digit
+		no /= 10
+	}
+	time.Sleep(2 * time.Second)
+	return sum
+}
+
+func worker(wg *sync.WaitGroup)  {
+	for job := range jobs{
+		output := Result{Job: job,SumOfDigits: digits(job.Randomno) }
+		results <- output
+	}
+	wg.Done()
+}
+
+func createWorkerPool(noOfWorkers int)  {
+	var wg sync.WaitGroup
+	for i := 0; i < noOfWorkers; i++{
+		wg.Add(1)
+		go worker(&wg)
+	}
+	wg.Wait()
+	close(results)
+}
+
+func allocate(noOfJobs int) {
+	for i := 0; i < noOfJobs; i++ {
+		randomno := rand.Intn(999)
+		job := Job{i, randomno}
+		jobs <- job
+	}
+	close(jobs)
+}
+
+func result(done chan bool) {
+	for result := range results {
+		fmt.Printf("Job id %d, input random no %d , sum of digits %d\n", result.Job.Id, result.Job.Randomno, result.SumOfDigits)
+	}
+	done <- true
+}
+```
+
+
+
 #### 参考资料：
 
 [浅谈协程和Go语言的Goroutine](https://juejin.cn/post/6844904056918376456)
@@ -425,3 +550,6 @@ func main() {
 [Go 系列教程 —— 21. Go 协程](https://studygolang.com/articles/12342)
 
 [Go 系列教程 —— 22. 信道（channel)](https://studygolang.com/articles/12402)
+
+[Go 系列教程 —— 23. 缓冲信道和工作池](https://studygolang.com/articles/12512)
+
