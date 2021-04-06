@@ -7,7 +7,7 @@ GO 语言协程知识点学习笔记
 
 #### 协程和进程和线程的对比
 
-##### 进程：
+##### 进程
 
 * 进程是系统资源分配的最小单位。进程的创建和销毁都是系统资源级别。操作起来代价昂贵。程是抢占式调度，分为三个状态：等待态、就绪态、运行态。进程之间是相互隔离的，拥有各自的系统资源，更加安全。因此存在进程之间通讯不方便的问题
 
@@ -15,7 +15,7 @@ GO 语言协程知识点学习笔记
 
 ![状态的转移](https://github.com/polichan/go-coroutine-learning/blob/main/assets/17012e958099cbf4.jpg?raw=true)
 
-##### 协程：
+##### 协程
 
 * 协程在有的资料中成为微线程或者用户态轻量级线程，协程调度不需要系统内核参与而是完全由用户态程序来决定，因此协程对于系统而言是无感知的。协程由用户态控制就不存在抢占式调度。抢占式调度会强制让 CPU 控制权切换到其它进线程，多个协程进行协作实调度，协程自己主动把控制权转让出去后，其它协程 才能被执行到，这样就避免了系统切换开销提高了 CPU 的使用效率。
 
@@ -23,8 +23,7 @@ GO 语言协程知识点学习笔记
 
 ![抢占式调度和协作式调度的简单对比图](https://github.com/polichan/go-coroutine-learning/blob/main/assets/17012e95811df2bb.jpg?raw=true)
 
-
-##### 如何启用一个 Go 协程？
+#### Go 协程
 
 启用一个 Go 协程非常简单，只需要在函数前加上关键字 ``go``，就可以轻易的启用一个新的 Go 协程并发运行。
 
@@ -217,7 +216,7 @@ main.main()
 Process finished with exit code 2
 ```
 
-##### 单向信道
+##### 单向管道
 上面所提到的例子中，展示的都是双向管道，即有接收也有发送，那么我们是否可以创建一个单向管道呢，这种管道只能发送或者接收数据。其实是可以的。
 
 ```golang
@@ -333,7 +332,91 @@ func producer(c chan int)  {
 }
 ```
 
-下一章：无阻塞管道，即缓冲管道：未完待续......
+##### 缓冲管道
+
+在无缓冲管道中，我们提到了无缓冲管道是阻塞的，因此本小节来介绍带有缓冲的管道，即可以实现无阻塞。
+
+我们只需要在创建管道时，给予管道一个容量大小，就可以声明一个带有缓冲的管道。
+
+```golang
+ch := make(chan int, 10)
+```
+
+以上声明了一个允许传输 ``int`` 类型的缓冲管道，并且管道的容量大小为 10。
+
+```golang
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+
+	ch := make(chan int, 2)
+	go write(ch)
+	time.Sleep(2 * time.Second)
+	for v := range ch {
+		fmt.Println("read value", v, "from ch")
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func write(ch chan int){
+	for i := 0; i < 5; i ++{
+		ch <- i
+		fmt.Println("Success wrote:", i, "to ch")
+	}
+	close(ch)
+}
+
+```
+
+首先我们创建了一个容量大小为 2 的缓冲管道。并且启动了一个协程，此协程不断得向 ``ch`` 传输数据，但是因为我们的容量为 2 ，因此一开始只会写入 ``0``和 ``1`` ，随后主协程进行休眠，接收管道数据，每一次接收就会使容量减少 1，因此协程又会进行写入，直到协程关闭了 ``ch`` 管道。
+
+```shell
+Success wrote: 0 to ch
+Success wrote: 1 to ch
+read value 0 from ch
+Success wrote: 2 to ch
+read value 1 from ch
+Success wrote: 3 to ch
+read value 2 from ch
+Success wrote: 4 to ch
+read value 3 from ch
+read value 4 from ch
+
+Process finished with exit code 0
+```
+
+##### 死锁
+
+```golang
+package main
+
+import (  
+    "fmt"
+)
+
+func main() {  
+    ch := make(chan string, 2)
+    ch <- "naveen"
+    ch <- "paul"
+    ch <- "steve"
+    fmt.Println(<-ch)
+    fmt.Println(<-ch)
+}
+```
+
+首先，我们创建了一个容量为 2 的管道，并向其发送了三个数据，分别是 ``naveen``、``paul``、``steve``，但是我们在主协程并没有进行接收，导致只有发送，没有接受，因此产生了死锁。
+
+##### 管道的长度与容量
+
+* 长度是指管道中当前排队的元素（数据）个数
+* 容量是指管道可以存储的元素（数据）的数量
+
+例如，容量为 3 的管道可能当前排队了两个元素，排队了 2 个元素的管道容量一定是大于等于 2 的。
 
 #### 参考资料：
 
@@ -341,4 +424,4 @@ func producer(c chan int)  {
 
 [Go 系列教程 —— 21. Go 协程](https://studygolang.com/articles/12342)
 
-[Go 系列教程 —— 22. 信道（channel](https://studygolang.com/articles/12402)
+[Go 系列教程 —— 22. 信道（channel)](https://studygolang.com/articles/12402)
